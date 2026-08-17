@@ -1,4 +1,5 @@
-[logo]: https://github.com/boxservers/foliamenus/assets/8f005044-593a-45f0-bab3-d015e3592f28
+[logo]: <img width="850" height="211" alt="foliamenusicon" src="https://github.com/user-attachments/assets/09fc54f3-5d13-4d9d-8566-6e67c41119b3" />
+
 
 
 [issues]: https://github.com/boxservers/FoliaMenus/issues
