@@ -1,4 +1,5 @@
-[logo]: https://github.com/HelpChat/DeluxeMenus/assets/52609756/f24ac57d-98db-4d57-a723-791a2654e73f
+[logo]: https://github.com/boxservers/foliamenus/assets/8f005044-593a-45f0-bab3-d015e3592f28
+
 
 [issues]: https://github.com/boxservers/FoliaMenus/issues
 [licenseImg]: https://img.shields.io/github/license/helpchat/deluxemenus?&logo=github
