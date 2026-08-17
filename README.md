@@ -37,6 +37,6 @@ If you would like to contribute towards FoliaMenus should you take a look at our
 ## Quick Links
 - [Wiki](https://wiki.helpch.at/clips-plugins/deluxemenus/)
 - [CI Server][ci]
-- [Spigot Page][spigot]
+- [Modrinth Page][modrinth]
 - [Plugin Statistics][bstats]
 
