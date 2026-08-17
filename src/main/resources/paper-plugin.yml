@@ -1,0 +1,22 @@
+name: DeluxeMenus
+main: com.extendedclip.deluxemenus.DeluxeMenus
+version: '${version}'
+api-version: '1.13'
+authors:
+  - HelpChat
+description: All in one inventory menu system
+softdepend:
+  - PlaceholderAPI
+  - Vault
+  - HeadDatabase
+  - HeadDB
+  - CraftEngine
+  - ItemsAdder
+  - Nexo
+  - Oraxen
+  - ExecutableItems
+  - ExecutableBlocks
+  - Score
+  - SimpleItemGenerator
+  - MMOItems
+folia-supported: true

@@ -2,18 +2,15 @@ package com.extendedclip.deluxemenus.menu;
 
 import com.extendedclip.deluxemenus.DeluxeMenus;
 import com.extendedclip.deluxemenus.menu.options.MenuOptions;
+import com.extendedclip.deluxemenus.scheduler.DeluxeMenusTask;
 import com.extendedclip.deluxemenus.utils.StringUtils;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -29,8 +26,8 @@ public class MenuHolder implements InventoryHolder {
     private Player placeholderPlayer;
     private String menuName;
     private Set<MenuItem> activeItems;
-    private BukkitTask updateTask = null;
-    private BukkitTask refreshTask = null;
+    private DeluxeMenusTask updateTask = null;
+    private DeluxeMenusTask refreshTask = null;
     private Inventory inventory;
     private boolean updating;
     private boolean parsePlaceholdersInArguments;
@@ -55,7 +52,7 @@ public class MenuHolder implements InventoryHolder {
         return viewer.getName();
     }
 
-    public BukkitTask getUpdateTask() {
+    public DeluxeMenusTask getUpdateTaskHandle() {
         return updateTask;
     }
 
@@ -138,15 +135,19 @@ public class MenuHolder implements InventoryHolder {
 
         setUpdating(true);
 
-        Bukkit.getScheduler().runTaskAsynchronously(this.plugin, () -> {
+        // Pre-compute which slots/items should be active. The requirement evaluators are written
+        // to be thread-safe (they read PlaceholderAPI values and other plugin state, but never
+        // mutate the inventory), so the heavy work happens off-thread on both Paper and Folia.
+        plugin.getScheduler().runGlobalAsync(() -> {
 
             final Set<MenuItem> active = new HashSet<>();
+            final Set<Integer> emptySlots = new HashSet<>();
 
             for (int i = 0; i < getInventory().getSize(); i++) {
                 TreeMap<Integer, MenuItem> e = menu.getMenuItems().get(i);
 
                 if (e == null) {
-                    getInventory().setItem(i, null);
+                    emptySlots.add(i);
                     continue;
                 }
 
@@ -168,15 +169,22 @@ public class MenuHolder implements InventoryHolder {
                 }
 
                 if (!m) {
-                    getInventory().setItem(i, null);
+                    emptySlots.add(i);
                 }
             }
 
             if (active.isEmpty()) {
-                Menu.closeMenu(plugin, getViewer(), true);
+                plugin.getScheduler().runForPlayer(getViewer(), () -> Menu.closeMenu(plugin, getViewer(), true));
+                return;
             }
 
-            Bukkit.getScheduler().runTask(plugin, () -> {
+            // All inventory mutations must run on the viewer's region thread on Folia. On Paper
+            // this collapses to the regular main-thread scheduler.
+            plugin.getScheduler().runForPlayer(getViewer(), () -> {
+
+                for (final int slot : emptySlots) {
+                    getInventory().setItem(slot, null);
+                }
 
                 boolean update = false;
 
@@ -241,16 +249,14 @@ public class MenuHolder implements InventoryHolder {
             stopRefreshTask();
         }
 
-        refreshTask = new BukkitRunnable() {
-            @Override
-            public void run() {
-                refreshMenu();
-            }
-        }.runTaskTimerAsynchronously(plugin, 20L,
-                20L * Menu.getMenuByName(menuName)
-                        .map(Menu::options)
-                        .map(MenuOptions::refreshInterval)
-                        .orElse(10));
+        final long period = 20L * Menu.getMenuByName(menuName)
+                .map(Menu::options)
+                .map(MenuOptions::refreshInterval)
+                .orElse(10);
+
+        // refreshMenu() itself bounces back to the player's region thread before mutating the
+        // inventory, so on Paper the timer stays async and on Folia it runs on the region.
+        refreshTask = plugin.getScheduler().runForPlayerTimerAsync(getViewer(), this::refreshMenu, 20L, period);
     }
 
     public void startUpdatePlaceholdersTask() {
@@ -259,69 +265,67 @@ public class MenuHolder implements InventoryHolder {
             stopPlaceholderUpdate();
         }
 
-        updateTask = new BukkitRunnable() {
+        final long period = 20L * Menu.getMenuByName(menuName)
+                .map(Menu::options)
+                .map(MenuOptions::updateInterval)
+                .orElse(10);
 
-            @Override
-            public void run() {
+        // ItemMeta / setItem mutations are region-locked on Folia, so the placeholder update
+        // timer runs on the viewer's region thread on both platforms.
+        updateTask = plugin.getScheduler().runForPlayerTimer(getViewer(), () -> {
 
-                if (updating) {
-                    return;
-                }
-
-                Set<MenuItem> items = getActiveItems();
-
-                if (items == null) {
-                    return;
-                }
-
-                for (MenuItem item : items) {
-
-                    if (item.options().updatePlaceholders()) {
-
-                        ItemStack i = inventory.getItem(item.options().slot());
-
-                        if (i == null) {
-                            continue;
-                        }
-
-                        int amt = i.getAmount();
-
-                        if (item.options().dynamicAmount().isPresent()) {
-                            try {
-                                amt = Integer.parseInt(setPlaceholdersAndArguments(item.options().dynamicAmount().get()));
-                                if (amt <= 0) {
-                                    amt = 1;
-                                }
-                            } catch (Exception exception) {
-                                plugin.printStacktrace(
-                                        "Something went wrong while updating item in slot " + item.options().slot() +
-                                                ". Invalid dynamic amount: " + setPlaceholdersAndArguments(item.options().dynamicAmount().get()),
-                                        exception
-                                );
-                            }
-                        }
-
-                        ItemMeta meta = i.getItemMeta();
-
-                        if (item.options().displayNameHasPlaceholders() && item.options().displayName().isPresent()) {
-                            meta.setDisplayName(StringUtils.color(setPlaceholdersAndArguments(item.options().displayName().get())));
-                        }
-
-                        if (item.options().loreHasPlaceholders()) {
-                            meta.setLore(item.getMenuItemLore(getHolder(), item.options().lore()));
-                        }
-
-                        i.setItemMeta(meta);
-                        i.setAmount(amt);
-                    }
-                }
+            if (updating) {
+                return;
             }
 
-        }.runTaskTimerAsynchronously(plugin, 20L,
-                20L * Menu.getMenuByName(menuName)
-                        .map(Menu::options)
-                        .map(MenuOptions::updateInterval)
-                        .orElse(10));
+            Set<MenuItem> items = getActiveItems();
+
+            if (items == null) {
+                return;
+            }
+
+            for (MenuItem item : items) {
+
+                if (item.options().updatePlaceholders()) {
+
+                    ItemStack i = inventory.getItem(item.options().slot());
+
+                    if (i == null) {
+                        continue;
+                    }
+
+                    int amt = i.getAmount();
+
+                    if (item.options().dynamicAmount().isPresent()) {
+                        try {
+                            amt = Integer.parseInt(setPlaceholdersAndArguments(item.options().dynamicAmount().get()));
+                            if (amt <= 0) {
+                                amt = 1;
+                            }
+                        } catch (Exception exception) {
+                            plugin.printStacktrace(
+                                    "Something went wrong while updating item in slot " + item.options().slot() +
+                                            ". Invalid dynamic amount: " + setPlaceholdersAndArguments(item.options().dynamicAmount().get()),
+                                    exception
+                            );
+                        }
+                    }
+
+                    ItemMeta meta = i.getItemMeta();
+
+                    if (item.options().displayNameHasPlaceholders() && item.options().displayName().isPresent()) {
+                        meta.setDisplayName(StringUtils.color(setPlaceholdersAndArguments(item.options().displayName().get())));
+                    }
+
+                    if (item.options().loreHasPlaceholders()) {
+                        meta.setLore(item.getMenuItemLore(getHolder(), item.options().lore()));
+                    }
+
+                    i.setItemMeta(meta);
+                    i.setAmount(amt);
+                }
+            }
+        }, 20L, period);
     }
 
     public boolean isUpdating() {

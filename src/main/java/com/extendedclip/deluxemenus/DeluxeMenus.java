@@ -16,6 +16,7 @@ import com.extendedclip.deluxemenus.menu.options.MenuOptions;
 import com.extendedclip.deluxemenus.nbt.NbtProvider;
 import com.extendedclip.deluxemenus.persistentmeta.PersistentMetaHandler;
 import com.extendedclip.deluxemenus.placeholder.Expansion;
+import com.extendedclip.deluxemenus.scheduler.FoliaScheduler;
 import com.extendedclip.deluxemenus.updatechecker.UpdateChecker;
 import com.extendedclip.deluxemenus.utils.DebugLevel;
 import com.extendedclip.deluxemenus.utils.Messages;
@@ -60,6 +61,7 @@ public class DeluxeMenus extends JavaPlugin {
 
     private final GeneralConfig generalConfig = new GeneralConfig(this);
     private DeluxeMenusConfig menuConfig;
+    private FoliaScheduler scheduler;
 
     @Override
     public void onLoad() {
@@ -77,6 +79,8 @@ public class DeluxeMenus extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        this.scheduler = new FoliaScheduler(this);
+
         this.generalConfig.load();
 
         if (!hookIntoPlaceholderAPI()) {
@@ -118,7 +122,9 @@ public class DeluxeMenus extends JavaPlugin {
     public void onDisable() {
         Bukkit.getMessenger().unregisterOutgoingPluginChannel(this, "BungeeCord");
 
-        Bukkit.getScheduler().cancelTasks(this);
+        if (this.scheduler != null) {
+            this.scheduler.cancelAll();
+        }
 
         if (this.audiences != null) {
             this.audiences.close();
@@ -228,6 +234,10 @@ public class DeluxeMenus extends JavaPlugin {
 
     public GeneralConfig getGeneralConfig() {
         return generalConfig;
+    }
+
+    public FoliaScheduler getScheduler() {
+        return scheduler;
     }
 
     private boolean hookIntoPlaceholderAPI() {

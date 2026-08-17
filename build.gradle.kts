@@ -21,11 +21,15 @@ repositories {
     maven("https://repo.momirealms.net/releases/")
     maven("https://repo.nexomc.com/releases/")
     maven("https://repo.oraxen.com/releases")
+    maven("https://repo.papermc.io/repository/maven-public/")
     maven("https://jitpack.io")
 }
 
 dependencies {
-    compileOnly(libs.spigot)
+    // Paper API bundles spigot-api at the matching MC version, so depending only on paper-api
+    // gives us both the org.bukkit.* surface and the io.papermc.paper.* region/global region
+    // scheduler classes used for Folia compatibility.
+    compileOnly(libs.paper.api)
 
     compileOnly(libs.vault)
     compileOnly(libs.authlib)
@@ -68,6 +72,9 @@ tasks {
 
     processResources {
         filesMatching("plugin.yml") {
+            expand("version" to rootProject.version)
+        }
+        filesMatching("paper-plugin.yml") {
             expand("version" to rootProject.version)
         }
     }

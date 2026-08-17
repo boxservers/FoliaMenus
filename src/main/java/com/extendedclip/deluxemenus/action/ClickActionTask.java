@@ -4,6 +4,7 @@ import com.extendedclip.deluxemenus.DeluxeMenus;
 import com.extendedclip.deluxemenus.menu.Menu;
 import com.extendedclip.deluxemenus.menu.MenuHolder;
 import com.extendedclip.deluxemenus.persistentmeta.PersistentMetaHandler;
+import com.extendedclip.deluxemenus.scheduler.DeluxeMenusTask;
 import com.extendedclip.deluxemenus.utils.*;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.md_5.bungee.api.ChatMessageType;
@@ -11,14 +12,13 @@ import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.logging.Level;
 
-public class ClickActionTask extends BukkitRunnable {
+public class ClickActionTask {
 
     private final DeluxeMenus plugin;
     private final UUID uuid;
@@ -28,6 +28,8 @@ public class ClickActionTask extends BukkitRunnable {
     private final Map<String, String> arguments;
     private final boolean parsePlaceholdersInArguments;
     private final boolean parsePlaceholdersAfterArguments;
+
+    private DeluxeMenusTask scheduled;
 
     public ClickActionTask(
             @NotNull final DeluxeMenus plugin,
@@ -47,7 +49,44 @@ public class ClickActionTask extends BukkitRunnable {
         this.parsePlaceholdersAfterArguments = parsePlaceholdersAfterArguments;
     }
 
-    @Override
+    /**
+     * Schedule the task to run on the target player's region thread on Folia, or on the main
+     * thread on Paper/Spigot. Stores the handle so it can be cancelled by callers.
+     */
+    public DeluxeMenusTask runTask(@NotNull final DeluxeMenus plugin) {
+        final Player target = Bukkit.getPlayer(this.uuid);
+        if (target == null) {
+            return plugin.getScheduler().runGlobal(this::run);
+        }
+        this.scheduled = plugin.getScheduler().runForPlayer(target, this::run);
+        return this.scheduled;
+    }
+
+    /**
+     * Schedule the task to run on the target player's region thread after {@code ticks}. Falls
+     * back to the global scheduler if the player has logged off.
+     */
+    public DeluxeMenusTask runTaskLater(@NotNull final DeluxeMenus plugin, final long ticks) {
+        final Player target = Bukkit.getPlayer(this.uuid);
+        if (target == null) {
+            // Defer to the global scheduler so delayed actions still fire if the player has
+            // logged out — but no player-region dispatch is possible without a region owner.
+            return plugin.getScheduler().runGlobalLater(this::run, ticks);
+        }
+        this.scheduled = plugin.getScheduler().runForPlayerLater(target, this::run, ticks);
+        return this.scheduled;
+    }
+
+    public void cancel() {
+        if (this.scheduled != null) {
+            this.scheduled.cancel();
+        }
+    }
+
+    /**
+     * Executes the action. Must already be running on the player's region thread (Folia) or the
+     * main thread (Paper/Spigot).
+     */
     public void run() {
         final Player player = Bukkit.getPlayer(this.uuid);
         if (player == null) {

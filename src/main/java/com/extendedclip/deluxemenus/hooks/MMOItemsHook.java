@@ -4,6 +4,7 @@ import com.extendedclip.deluxemenus.DeluxeMenus;
 import com.extendedclip.deluxemenus.cache.SimpleCache;
 import com.extendedclip.deluxemenus.utils.DebugLevel;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.logging.Level;
@@ -47,22 +48,38 @@ public class MMOItemsHook implements ItemHook, SimpleCache {
 
         ItemStack mmoItem = null;
         try {
-            mmoItem = Bukkit.getScheduler().callSyncMethod(plugin, () -> {
-                ItemStack item = MMOItems.plugin.getItem(itemType, splitArgs[1]);
-
-                if (item == null) {
-                    return new ItemStack(Material.STONE, 1);
-                }
-
-                cache.put(arguments[0], item);
-
-                return item.clone();
-            }).get();
+            if (plugin.getScheduler().isFolia()) {
+                // Folia has no global main thread; bounce the synchronous MMOItems call onto the
+                // global region scheduler and block the async caller on the returned future.
+                final CompletableFuture<ItemStack> future = new CompletableFuture<>();
+                plugin.getScheduler().runGlobal(() -> {
+                    try {
+                        future.complete(resolveAndCache(splitArgs));
+                    } catch (final Throwable t) {
+                        future.complete(new ItemStack(Material.STONE, 1));
+                    }
+                });
+                mmoItem = future.get();
+            } else {
+                mmoItem = Bukkit.getScheduler().callSyncMethod(plugin, () -> resolveAndCache(splitArgs)).get();
+            }
         } catch (InterruptedException | ExecutionException e) {
             plugin.debug(DebugLevel.HIGHEST, Level.SEVERE, "Error getting MMOItem synchronously.");
         }
 
         return mmoItem == null ? new ItemStack(Material.STONE, 1) : mmoItem;
+    }
+
+    private ItemStack resolveAndCache(final String[] splitArgs) {
+        ItemStack item = MMOItems.plugin.getItem(MMOItems.plugin.getTypes().get(splitArgs[0]), splitArgs[1]);
+
+        if (item == null) {
+            return new ItemStack(Material.STONE, 1);
+        }
+
+        cache.put(splitArgs[0] + ":" + splitArgs[1], item);
+
+        return item.clone();
     }
 
     @Override

@@ -1,7 +1,6 @@
 package com.extendedclip.deluxemenus.cooldown;
 
 import com.extendedclip.deluxemenus.DeluxeMenus;
-import org.bukkit.Bukkit;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Locale;
@@ -124,7 +123,7 @@ public class EphemeralCooldownManager {
      * {@link DeluxeMenus#onDisable()}.
      */
     public void startSweepTask() {
-        Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::sweep, SWEEP_INTERVAL, SWEEP_INTERVAL);
+        plugin.getScheduler().runGlobalTimerAsync(this::sweep, SWEEP_INTERVAL, SWEEP_INTERVAL);
     }
 
     private void sweep() {
