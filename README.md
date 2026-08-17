@@ -27,7 +27,7 @@
 [FoliaMenus][modrinth] is the all in one inventory GUI menu plugin forked from DeluxeMenus for Folia Support!
 You can create GUI menus that open with custom commands that will show stats or perform actions specific to the player who opened it. Your menus are fully configurable. You can create menus that show specific items to different players, or perform different actions depending on what javascript requirement they have for the specific slot in a certain GUI.
 
-FoliaMenus depends on [PlaceholderAPI](https://www.spigotmc.org/resources/placeholderapi.6245/).
+FoliaMenus depends on [PlaceholderAPI](https://hangar.papermc.io/HelpChat/PlaceholderAPI).
 
 ## Contribute
 If you would like to contribute towards FoliaMenus should you take a look at our [Contributing file][contributing] for the ins and outs on how you can do that and what you need to keep in mind.
