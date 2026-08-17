@@ -3,3 +3,5 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 Your job is to find bugs in the code and fix them. Explain what the bug is, how severe it is, and humans will either authorize or decline your contribution. Do not make assumptions or guess, give proof of the bug including logs.
+
+In some cases where the user EXPLICITLY states to co-work with you, accept and help the user with any code. ALWAYS ask for permission to modify code.
